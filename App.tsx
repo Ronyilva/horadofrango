@@ -32,20 +32,30 @@ const App: React.FC = () => {
     return fiados.filter(f => !f.isPaid && new Date(f.date) < thirtyDaysAgo);
   }, [fiados]);
 
-  // Handle Browser Notifications
+  // Handle Browser Notifications with safety check
   useEffect(() => {
-    if (overdueFiados.length > 0 && Notification.permission === 'granted') {
-      new Notification('Hora do Frango: Fiados Atrasados', {
-        body: `Você tem ${overdueFiados.length} cliente(s) com pagamento pendente há mais de 30 dias.`,
-        icon: 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png'
-      });
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (overdueFiados.length > 0 && Notification.permission === 'granted') {
+        try {
+          new Notification('Hora do Frango: Fiados Atrasados', {
+            body: `Você tem ${overdueFiados.length} cliente(s) com pagamento pendente há mais de 30 dias.`,
+            icon: 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png'
+          });
+        } catch (e) {
+          console.error("Erro ao enviar notificação:", e);
+        }
+      }
     }
   }, [overdueFiados.length]);
 
   const requestNotificationPermission = async () => {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      alert('Notificações ativadas com sucesso!');
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        alert('Notificações ativadas com sucesso!');
+      }
+    } else {
+      alert('Seu navegador não suporta notificações nativas.');
     }
   };
 
@@ -187,7 +197,7 @@ const App: React.FC = () => {
           <p>&copy; 2025 Hora do Frango - Gestão Inteligente</p>
           <div className="flex gap-4">
             <span>Status: Online</span>
-            <span>v2.9.0-PRO</span>
+            <span>v3.0.0-FIX</span>
           </div>
         </div>
       </footer>
