@@ -1,9 +1,10 @@
 
-const CACHE_NAME = 'hora-do-frango-v2';
+const CACHE_NAME = 'hora-do-frango-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?q=80&w=512&h=512&auto=format&fit=crop'
 ];
 
 // Instalação: Cacheia os arquivos essenciais
@@ -34,13 +35,11 @@ self.addEventListener('activate', (event) => {
 
 // Estratégia de Busca: Tenta Rede, se falhar tenta Cache
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições de extensões ou esquemas estranhos
   if (!event.request.url.startsWith('http')) return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Se a resposta for válida, guarda uma cópia no cache (opcional para ativos estáticos)
         if (response.status === 200 && event.request.method === 'GET') {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -50,11 +49,8 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Se a rede falhar, busca no cache
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) return cachedResponse;
-          
-          // Se for uma navegação e não tiver no cache, retorna a página inicial
           if (event.request.mode === 'navigate') {
             return caches.match('/');
           }
