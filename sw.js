@@ -1,10 +1,10 @@
 
-const CACHE_NAME = 'hora-do-frango-v3';
+const CACHE_NAME = 'hora-do-frango-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?q=80&w=512&h=512&auto=format&fit=crop'
+  'https://cdn-icons-png.flaticon.com/512/10454/10454045.png'
 ];
 
 // Instalação: Cacheia os arquivos essenciais

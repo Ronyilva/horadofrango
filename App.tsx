@@ -15,7 +15,7 @@ enum Tab {
   CONFIG = 'CONFIG'
 }
 
-const APP_ICON_URL = "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?q=80&w=512&h=512&auto=format&fit=crop";
+const APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/10454/10454045.png";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
@@ -85,7 +85,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="bg-white p-0.5 rounded-lg rotate-3 overflow-hidden shadow-md">
-               <img src={APP_ICON_URL} className="w-8 h-8 object-cover rounded" alt="Logo" />
+               <img src={APP_ICON_URL} className="w-8 h-8 object-contain rounded" alt="Logo" />
             </div>
             <div>
               <h1 className="text-lg font-black tracking-tighter leading-none">HORA DO FRANGO</h1>
@@ -127,7 +127,7 @@ const App: React.FC = () => {
                     {overdueFiados.length > 0 ? (
                       overdueFiados.map(f => (
                         <div key={f.id} className="p-3 border-b border-slate-50 hover:bg-red-50 flex items-start gap-3">
-                          <img src={APP_ICON_URL} className="w-8 h-8 rounded object-cover mt-1" alt="Chicken" />
+                          <img src={APP_ICON_URL} className="w-8 h-8 rounded object-contain mt-1" alt="Chicken" />
                           <div>
                             <p className="text-xs font-bold text-slate-800">{f.customerName}</p>
                             <p className="text-[10px] text-red-500 font-semibold uppercase">Atraso +30 dias</p>
@@ -213,9 +213,9 @@ const App: React.FC = () => {
       {/* Desktop Navigation for Reference */}
       <div className="hidden md:block max-w-7xl mx-auto px-4 mt-12 pt-8 border-t border-slate-200">
         <div className="flex justify-between items-center text-slate-400 text-[10px] font-medium uppercase tracking-widest">
-          <p>&copy; 2025 Hora do Frango - Identidade Visual Atualizada</p>
+          <p>&copy; 2025 Hora do Frango - Ícone Animado Pro</p>
           <div className="flex gap-4">
-            <span>v5.0.0-PRO</span>
+            <span>v6.0.0-CARTOON</span>
           </div>
         </div>
       </div>
