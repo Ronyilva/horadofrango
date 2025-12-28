@@ -8,11 +8,12 @@
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#1e293b" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Hora Frango" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3075/3075977.png" />
-    <link rel="manifest" href="manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,18 +23,23 @@
       body { 
         font-family: 'Inter', sans-serif; 
         -webkit-tap-highlight-color: transparent;
-        user-select: none;
+        overflow-x: hidden;
+        background-color: #f8fafc;
       }
-      /* Prevenir rolagem elástica no iOS */
+      /* Prevenir rolagem elástica chata no iOS PWA */
       html, body {
         height: 100%;
-        overflow: hidden;
+        position: fixed;
+        width: 100%;
       }
       #root {
         height: 100%;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
       }
+      /* Safe Areas para celulares com Notch */
+      .safe-top { padding-top: env(safe-area-inset-top); }
+      .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
   <script type="importmap">
 {
@@ -47,7 +53,7 @@
 </script>
 </head>
   <body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+    <div id="root" class="safe-top safe-bottom"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

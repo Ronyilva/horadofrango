@@ -3,11 +3,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Registro do Service Worker para PWA
+// Registro do Service Worker para PWA com caminho absoluto
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW registrado com sucesso', reg))
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('SW registrado com sucesso', reg);
+        // Tentar atualizar o SW sempre que o app for aberto
+        reg.update();
+      })
       .catch(err => console.log('Erro ao registrar SW', err));
   });
 }

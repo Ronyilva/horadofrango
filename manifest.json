@@ -3,7 +3,7 @@
   "name": "Hora do Frango - Gestão",
   "short_name": "HoraFrango",
   "description": "Sistema de Gestão Financeira Profissional para Hora do Frango",
-  "start_url": "./",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#1e293b",
