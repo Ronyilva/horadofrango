@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Bank, Category, Transaction, TransactionType, Fiado } from './types';
+import { Bank, Category, Transaction, TransactionType, Fiado, MonthHistory } from './types';
 import StatCard from './components/StatCard';
 import Table from './components/Table';
 import { formatCurrency, formatPercent, getMonthName } from './utils';
@@ -11,9 +11,10 @@ interface DashboardProps {
   banks: Bank[];
   categories: Category[];
   fiados: Fiado[];
+  history: MonthHistory[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados }) => {
+const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
 

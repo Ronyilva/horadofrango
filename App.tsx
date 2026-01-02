@@ -23,7 +23,7 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   
   const { 
-    banks, categories, transactions, fiados,
+    banks, categories, transactions, fiados, history,
     addTransaction, removeTransaction, 
     addBank, removeBank, addCategory, removeCategory,
     addFiado, payFiado, toggleFiadoPaid, removeFiado, resetAllData
@@ -151,7 +151,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 mt-6">
         {activeTab === Tab.DASHBOARD && (
-          <Dashboard transactions={transactions} banks={banks} categories={categories} fiados={fiados} />
+          <Dashboard transactions={transactions} banks={banks} categories={categories} fiados={fiados} history={history} />
         )}
         {activeTab === Tab.EXTRATO && (
           <Transactions 

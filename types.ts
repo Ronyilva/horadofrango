@@ -36,6 +36,15 @@ export interface DashboardData {
   received: number;
 }
 
+export interface Fiado {
+  id: string;
+  customerName: string;
+  amount: number;
+  date: string;
+  isPaid: boolean;
+  notes?: string;
+}
+
 export interface MonthHistory {
   monthYear: string;
   totalSold: number;

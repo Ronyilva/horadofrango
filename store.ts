@@ -176,6 +176,7 @@ export function useFinanceStore() {
     toggleFiadoPaid,
     removeFiado,
     setTransactions,
+    history,
     resetAllData
   };
 }
