@@ -13,6 +13,7 @@ const Forecast: React.FC<ForecastProps> = ({ transactions }) => {
   const [unitsPerCaixa, setUnitsPerCaixa] = useState<number>(0);
   const [sellingPrice, setSellingPrice] = useState<number>(0);
   const [targetQty, setTargetQty] = useState<number>(0);
+  const [considerOverhead, setConsiderOverhead] = useState<boolean>(false);
 
   // Custo fixo mensal (informativo) baseado no mês atual
   const overhead = useMemo(() => {
@@ -26,10 +27,25 @@ const Forecast: React.FC<ForecastProps> = ({ transactions }) => {
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transactions]);
 
+  // Média de frangos vendidos no mês atual para diluição
+  const monthlyChickensSold = useMemo(() => {
+    const now = new Date();
+    return transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((acc, t) => acc + (t.quantity || 0), 0);
+  }, [transactions]);
+
   // Cálculos automáticos
   const unitCost = useMemo(() => {
-    return unitsPerCaixa > 0 ? caixaCost / unitsPerCaixa : 0;
-  }, [caixaCost, unitsPerCaixa]);
+    const baseCost = unitsPerCaixa > 0 ? caixaCost / unitsPerCaixa : 0;
+    if (considerOverhead && monthlyChickensSold > 0) {
+      return baseCost + (overhead / monthlyChickensSold);
+    }
+    return baseCost;
+  }, [caixaCost, unitsPerCaixa, considerOverhead, overhead, monthlyChickensSold]);
 
   const boxesToBuy = useMemo(() => {
     return unitsPerCaixa > 0 ? Math.ceil(targetQty / unitsPerCaixa) : 0;
@@ -103,10 +119,23 @@ const Forecast: React.FC<ForecastProps> = ({ transactions }) => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Custo Fixo Mensal</label>
-                <div className="p-3 bg-slate-800/50 rounded-xl text-slate-400 text-sm font-black border-2 border-slate-700/50">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-300">Custo Fixo Mensal</label>
+                  <button 
+                    onClick={() => setConsiderOverhead(!considerOverhead)}
+                    className={`text-[9px] font-black uppercase px-2 py-0.5 rounded transition-all ${considerOverhead ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'}`}
+                  >
+                    {considerOverhead ? 'Ativado' : 'Desativado'}
+                  </button>
+                </div>
+                <div className={`p-3 rounded-xl text-sm font-black border-2 transition-all ${considerOverhead ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : 'bg-slate-800/50 border-slate-700/50 text-slate-500'}`}>
                   {formatCurrency(overhead)}
                 </div>
+                {considerOverhead && monthlyChickensSold > 0 && (
+                  <p className="text-[9px] text-blue-500/70 mt-1 font-bold italic">
+                    + {formatCurrency(overhead / monthlyChickensSold)}/un diluído
+                  </p>
+                )}
               </div>
             </div>
           </div>
