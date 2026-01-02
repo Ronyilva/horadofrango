@@ -17,14 +17,10 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [globalPeriod, setGlobalPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
 
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
-    });
-  }, [transactions, selectedYear, selectedMonth]);
-
+  const today = new Date().toISOString().split('T')[0];
+  
   const isOverdue = (dateStr: string) => {
     const d = new Date(dateStr);
     const fifteenDaysAgo = new Date();
@@ -32,90 +28,123 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     return d < fifteenDaysAgo;
   };
 
-  const [timeFilter, setTimeFilter] = useState<'hoje' | 'ontem' | 'semana' | 'mes'>('hoje');
-
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-  const filteredByTime = useMemo(() => {
+  const getPeriodTransactions = useMemo(() => {
+    const now = new Date();
     return transactions.filter(t => {
       const d = new Date(t.date);
       const tDate = t.date.split('T')[0];
-      if (timeFilter === 'hoje') return tDate === today;
-      if (timeFilter === 'ontem') return tDate === yesterday;
-      if (timeFilter === 'semana') {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return d >= weekAgo;
+      
+      if (globalPeriod === 'dia') return tDate === today;
+      
+      if (globalPeriod === 'semana') {
+        const startOfWeek = new Date(now);
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+        startOfWeek.setDate(diff);
+        startOfWeek.setHours(0,0,0,0);
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23,59,59,999);
+        
+        return d >= startOfWeek && d <= endOfWeek;
       }
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+      
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     });
-  }, [transactions, timeFilter, today, yesterday, selectedYear, selectedMonth]);
+  }, [transactions, globalPeriod, today]);
 
   const kpis = useMemo(() => {
-    const currentMonthTransactions = transactions.filter(t => {
+    const periodTransactions = getPeriodTransactions;
+    const dailyTransactions = transactions.filter(t => t.date.split('T')[0] === today);
+    const monthTransactions = transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getFullYear() === new Date().getFullYear() && d.getMonth() === new Date().getMonth();
+      const now = new Date();
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     });
 
-    const dailyTransactions = transactions.filter(t => t.date.split('T')[0] === today);
-
-    const caixaDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
-    const lucroDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0); // Simplified as requested
-    const custoDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
+    const caixaPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
+    const lucroPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
+    const custoPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
     
-    const totalRevenue = currentMonthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-    const totalExpenses = currentMonthTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
-    
-    // Projeção
+    const revenueMonth = monthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    const projection = (totalRevenue / dayOfMonth) * daysInMonth;
+    const projection = (revenueMonth / dayOfMonth) * daysInMonth;
 
-    // Fiados data
     const totalFiadosPending = fiados.filter(f => !f.isPaid).reduce((acc, f) => acc + f.amount, 0);
     const totalFiadosOverdue = fiados.filter(f => !f.isPaid && isOverdue(f.date)).reduce((acc, f) => acc + f.amount, 0);
 
     const chickenSales = dailyTransactions.filter(t => t.description.toLowerCase().includes('frango')).length;
 
     return { 
-      caixaDia,
-      lucroDia,
-      custoDia,
-      totalRevenue, 
-      totalExpenses, 
+      caixaPeriodo,
+      lucroPeriodo,
+      custoPeriodo,
       totalFiadosPending, 
       totalFiadosOverdue,
       projection,
       chickenSales,
       totalSoldToday: dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0)
     };
-  }, [transactions, fiados, today]);
+  }, [transactions, fiados, today, getPeriodTransactions]);
 
-  // Main Chart Logic
   const chartData = useMemo(() => {
-    if (timeFilter === 'hoje' || timeFilter === 'ontem') {
-      const targetDate = timeFilter === 'hoje' ? today : yesterday;
+    if (globalPeriod === 'dia') {
       const hours = Array.from({ length: 24 }, (_, i) => ({
         label: `${i}h`,
         entradas: 0,
         saidas: 0
       }));
-      transactions.filter(t => t.date.split('T')[0] === targetDate).forEach(t => {
+      transactions.filter(t => t.date.split('T')[0] === today).forEach(t => {
         const h = new Date(t.date).getHours();
         if (t.type === TransactionType.RECEITA) hours[h].entradas += t.amount;
         else hours[h].saidas += t.amount;
       });
       return hours;
     }
-    // ... default monthly/weekly logic
-    const labels = timeFilter === 'semana' ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'] : Array.from({ length: 12 }, (_, i) => getMonthName(i));
-    return labels.map((l, i) => ({
-      label: l,
-      entradas: Math.random() * 1000, // Mock for now or actual aggregation
-      saidas: Math.random() * 500
-    }));
-  }, [transactions, timeFilter, today, yesterday]);
+
+    if (globalPeriod === 'semana') {
+      const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
+      return days.map((d, i) => {
+        const dayTransactions = getPeriodTransactions.filter(t => {
+          const dt = new Date(t.date);
+          const day = dt.getDay();
+          const targetDay = i === 6 ? 0 : i + 1;
+          return day === targetDay;
+        });
+        return {
+          label: d,
+          entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
+          saidas: dayTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0)
+        };
+      });
+    }
+
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const dayTransactions = getPeriodTransactions.filter(t => new Date(t.date).getDate() === day);
+      return {
+        label: `${day}`,
+        entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
+        saidas: dayTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0)
+      };
+    });
+  }, [transactions, globalPeriod, today, getPeriodTransactions]);
+
+  const getLabel = (base: string) => {
+    if (globalPeriod === 'dia') return `${base} do Dia`;
+    if (globalPeriod === 'semana') return `${base} da Semana`;
+    return base === 'Lucro' ? 'Lucro Líquido do Mês' : `${base} do Mês`;
+  };
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+    });
+  }, [transactions, selectedYear, selectedMonth]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -143,16 +172,32 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
   return (
     <div className="space-y-6">
-      {/* Reordered KPI Cards */}
+      <div className="flex justify-center md:justify-end">
+        <div className="inline-flex p-1 bg-slate-200 rounded-xl shadow-inner">
+          {(['dia', 'semana', 'mes'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setGlobalPeriod(p)}
+              className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all duration-200 ${
+                globalPeriod === p 
+                ? 'bg-white text-blue-600 shadow-md transform scale-105' 
+                : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatCard label="Caixa do Dia" value={kpis.caixaDia} bgColor="bg-green-600" />
-        <StatCard label="Lucro do Dia" value={kpis.lucroDia} bgColor="bg-blue-600" />
-        <StatCard label="Custo do Dia" value={kpis.custoDia} bgColor="bg-red-500" />
+        <StatCard label={getLabel('Caixa')} value={kpis.caixaPeriodo} bgColor="bg-green-600" />
+        <StatCard label={getLabel('Lucro')} value={kpis.lucroPeriodo} bgColor="bg-blue-600" />
+        <StatCard label={getLabel('Custo')} value={kpis.custoPeriodo} bgColor="bg-red-500" />
         <StatCard label="Fiados em Aberto" value={kpis.totalFiadosPending} bgColor="bg-orange-500" />
         <StatCard label="Fiados Atrasados" value={kpis.totalFiadosOverdue} bgColor="bg-red-700" />
       </div>
 
-      {/* Resumo do Dia (Card Fixo) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Total Vendido Hoje</p>
@@ -160,11 +205,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         </div>
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Total Gasto Hoje</p>
-          <p className="text-2xl font-black text-red-500">{formatCurrency(kpis.custoDia)}</p>
+          <p className="text-2xl font-black text-red-500">{formatCurrency(transactions.filter(t => t.date.split('T')[0] === today && t.type === TransactionType.DESPESA).reduce((a,b) => a+b.amount,0))}</p>
         </div>
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Lucro do Dia</p>
-          <p className="text-2xl font-black text-green-500">{formatCurrency(kpis.lucroDia)}</p>
+          <p className="text-2xl font-black text-green-500">{formatCurrency(transactions.filter(t => t.date.split('T')[0] === today).reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0))}</p>
         </div>
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Frangos Vendidos</p>
@@ -174,18 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          <h3 className="font-black uppercase text-slate-800 tracking-tight">Entradas x Saídas</h3>
-          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-            {(['hoje', 'ontem', 'semana', 'mes'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setTimeFilter(f)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${timeFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+          <h3 className="font-black uppercase text-slate-800 tracking-tight">Entradas x Saídas ({globalPeriod.toUpperCase()})</h3>
         </div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
@@ -199,11 +233,13 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-          <p className="text-sm font-bold text-blue-800">
-            🚀 Projeção Mensal: <span className="text-blue-600">Se continuar nesse ritmo, o mês fecha em: {formatCurrency(kpis.projection)}</span>
-          </p>
-        </div>
+        {globalPeriod === 'mes' && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-sm font-bold text-blue-800">
+              🚀 Projeção Mensal: <span className="text-blue-600">Se continuar nesse ritmo, o mês fecha em: {formatCurrency(kpis.projection)}</span>
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
