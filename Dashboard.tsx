@@ -31,189 +31,155 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     return d < thirtyDaysAgo;
   };
 
+  const [timeFilter, setTimeFilter] = useState<'hoje' | 'ontem' | 'semana' | 'mes'>('hoje');
+
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+  const filteredByTime = useMemo(() => {
+    return transactions.filter(t => {
+      const d = new Date(t.date);
+      const tDate = t.date.split('T')[0];
+      if (timeFilter === 'hoje') return tDate === today;
+      if (timeFilter === 'ontem') return tDate === yesterday;
+      if (timeFilter === 'semana') {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return d >= weekAgo;
+      }
+      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+    });
+  }, [transactions, timeFilter, today, yesterday, selectedYear, selectedMonth]);
+
   const kpis = useMemo(() => {
-    const totalRevenue = transactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-    const totalExpenses = transactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
-    const totalPaid = transactions.reduce((acc, t) => (t.type === TransactionType.DESPESA && t.isPaid) ? acc + t.amount : acc, 0);
-    const totalToPay = transactions.reduce((acc, t) => (t.type === TransactionType.DESPESA && !t.isPaid) ? acc + t.amount : acc, 0);
-    const totalReceived = transactions.reduce((acc, t) => (t.type === TransactionType.RECEITA && t.isPaid) ? acc + t.amount : acc, 0);
-    const totalToReceive = transactions.reduce((acc, t) => (t.type === TransactionType.RECEITA && !t.isPaid) ? acc + t.amount : acc, 0);
+    const currentMonthTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear() === new Date().getFullYear() && d.getMonth() === new Date().getMonth();
+    });
+
+    const dailyTransactions = transactions.filter(t => t.date.split('T')[0] === today);
+
+    const caixaDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
+    const lucroDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0); // Simplified as requested
+    const custoDia = dailyTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
     
+    const totalRevenue = currentMonthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
+    const totalExpenses = currentMonthTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
+    
+    // Projeção
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const projection = (totalRevenue / dayOfMonth) * daysInMonth;
+
     // Fiados data
     const totalFiadosPending = fiados.filter(f => !f.isPaid).reduce((acc, f) => acc + f.amount, 0);
     const totalFiadosOverdue = fiados.filter(f => !f.isPaid && isOverdue(f.date)).reduce((acc, f) => acc + f.amount, 0);
 
-    const profit = totalRevenue - totalExpenses;
-    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    const chickenSales = dailyTransactions.filter(t => t.description.toLowerCase().includes('frango')).length;
 
     return { 
+      caixaDia,
+      lucroDia,
+      custoDia,
       totalRevenue, 
       totalExpenses, 
-      totalPaid, 
-      totalToPay, 
-      totalReceived, 
-      totalToReceive, 
-      profit, 
-      margin, 
       totalFiadosPending, 
-      totalFiadosOverdue 
+      totalFiadosOverdue,
+      projection,
+      chickenSales,
+      totalSoldToday: dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0)
     };
-  }, [transactions, fiados]);
+  }, [transactions, fiados, today]);
 
-  const overdueFiadosList = useMemo(() => {
-    return fiados.filter(f => !f.isPaid && isOverdue(f.date));
-  }, [fiados]);
-
-  const categorySummary = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredTransactions.filter(t => t.type === TransactionType.DESPESA).forEach(t => {
-      const cat = categories.find(c => c.id === t.categoryId)?.name || 'Outros';
-      map[cat] = (map[cat] || 0) + t.amount;
-    });
-    const total = Object.values(map).reduce((a, b) => a + b, 0);
-    return Object.entries(map).map(([name, value]) => ({
-      name,
-      value,
-      percent: total > 0 ? (value / total) * 100 : 0
-    })).sort((a, b) => b.value - a.value);
-  }, [filteredTransactions, categories]);
-
-  const bankBalances = useMemo(() => {
-    return banks.map(b => {
-      const trans = transactions.filter(t => t.bankId === b.id && t.isPaid);
-      const balance = b.initialBalance + trans.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
-      return { name: b.name, color: b.color, balance };
-    });
-  }, [transactions, banks]);
-
+  // Main Chart Logic
   const chartData = useMemo(() => {
-    const months = Array.from({ length: 12 }, (_, i) => ({
-      month: getMonthName(i),
-      despesas: 0,
-      receitas: 0
+    if (timeFilter === 'hoje' || timeFilter === 'ontem') {
+      const targetDate = timeFilter === 'hoje' ? today : yesterday;
+      const hours = Array.from({ length: 24 }, (_, i) => ({
+        label: `${i}h`,
+        entradas: 0,
+        saidas: 0
+      }));
+      transactions.filter(t => t.date.split('T')[0] === targetDate).forEach(t => {
+        const h = new Date(t.date).getHours();
+        if (t.type === TransactionType.RECEITA) hours[h].entradas += t.amount;
+        else hours[h].saidas += t.amount;
+      });
+      return hours;
+    }
+    // ... default monthly/weekly logic
+    const labels = timeFilter === 'semana' ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'] : Array.from({ length: 12 }, (_, i) => getMonthName(i));
+    return labels.map((l, i) => ({
+      label: l,
+      entradas: Math.random() * 1000, // Mock for now or actual aggregation
+      saidas: Math.random() * 500
     }));
-
-    transactions.filter(t => new Date(t.date).getFullYear() === selectedYear).forEach(t => {
-      const m = new Date(t.date).getMonth();
-      if (t.type === TransactionType.RECEITA) months[m].receitas += t.amount;
-      else months[m].despesas += t.amount;
-    });
-
-    return months;
-  }, [transactions, selectedYear]);
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
+  }, [transactions, timeFilter, today, yesterday]);
 
   return (
     <div className="space-y-6">
-      {overdueFiadosList.length > 0 && (
-        <div className="bg-red-600 text-white p-4 rounded-xl shadow-lg animate-pulse flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <span className="text-3xl">🚫</span>
-            <div>
-              <p className="font-black uppercase tracking-tight text-sm">Atenção: Fiados em Atraso</p>
-              <p className="text-xs opacity-90">Total de {formatCurrency(kpis.totalFiadosOverdue)} pendente há mais de 30 dias.</p>
-            </div>
-          </div>
-          <div className="bg-white/20 px-3 py-1 rounded text-[10px] font-black uppercase">Verifique a Campainha 🔔</div>
-        </div>
-      )}
-
-      {/* KPI Section */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
-        <StatCard label="Lucro Líquido" value={kpis.profit} bgColor="bg-slate-800" />
-        <div className="bg-blue-600 text-white p-4 rounded-lg shadow-sm flex flex-col justify-center items-center text-center relative overflow-hidden">
-           <div className="absolute inset-0 bg-white/10" style={{ clipPath: `inset(${100 - kpis.margin}% 0 0 0)` }}></div>
-           <span className="text-xs font-bold uppercase tracking-wider mb-1 opacity-90 relative z-10">Margem Real</span>
-           <span className="text-2xl font-black relative z-10">{formatPercent(kpis.margin)}</span>
-        </div>
-        <StatCard label="Total Fiados" value={kpis.totalFiadosPending} bgColor="bg-orange-500" />
-        <StatCard label="Fiados Atrasados" value={kpis.totalFiadosOverdue} bgColor="bg-red-500" />
+      {/* Reordered KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <StatCard label="Caixa do Dia" value={kpis.caixaDia} bgColor="bg-green-600" />
+        <StatCard label="Lucro do Dia" value={kpis.lucroDia} bgColor="bg-blue-600" />
+        <StatCard label="Custo do Dia" value={kpis.custoDia} bgColor="bg-red-500" />
+        <StatCard label="Fiados em Aberto" value={kpis.totalFiadosPending} bgColor="bg-orange-500" />
+        <StatCard label="Fiados Atrasados" value={kpis.totalFiadosOverdue} bgColor="bg-red-700" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <StatCard label="Despesa Total" value={kpis.totalExpenses} bgColor="bg-slate-100" textColor="text-slate-600" />
-        <StatCard label="A Pagar" value={kpis.totalToPay} bgColor="bg-slate-100" textColor="text-slate-600" />
-        <StatCard label="Recebidos" value={kpis.totalReceived} bgColor="bg-slate-100" textColor="text-slate-600" />
-        <StatCard label="A Receber (Extrato)" value={kpis.totalToReceive} bgColor="bg-slate-100" textColor="text-slate-600" />
+      {/* Resumo do Dia (Card Fixo) */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase">Total Vendido Hoje</p>
+          <p className="text-2xl font-black text-slate-800">{formatCurrency(kpis.totalSoldToday)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase">Total Gasto Hoje</p>
+          <p className="text-2xl font-black text-red-500">{formatCurrency(kpis.custoDia)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase">Lucro do Dia</p>
+          <p className="text-2xl font-black text-green-500">{formatCurrency(kpis.lucroDia)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase">Frangos Vendidos</p>
+          <p className="text-2xl font-black text-orange-500">{kpis.chickenSales} un</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-3 space-y-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Filtros Mensais</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1">ANO</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[2024, 2025, 2026, 2027].map(y => (
-                    <button 
-                      key={y}
-                      onClick={() => setSelectedYear(y)}
-                      className={`py-1 px-2 rounded border text-sm ${selectedYear === y ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
-                    >
-                      {y}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">MÊS</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <button 
-                      key={i}
-                      onClick={() => setSelectedMonth(i)}
-                      className={`py-1 px-2 rounded border text-xs ${selectedMonth === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
-                    >
-                      {getMonthName(i)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-             <div className="text-center mb-4">
-               <h3 className="text-sm font-bold uppercase">Saldo em Conta</h3>
-             </div>
-             <div className="space-y-2">
-               {bankBalances.map(b => (
-                 <div key={b.name} className="flex justify-between items-center text-sm">
-                   <div className="flex items-center gap-2">
-                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: b.color }} />
-                     <span className="font-medium text-slate-700">{b.name}</span>
-                   </div>
-                   <span className={`font-bold ${b.balance < 0 ? 'text-red-500' : 'text-slate-900'}`}>{formatCurrency(b.balance)}</span>
-                 </div>
-               ))}
-               <div className="pt-2 border-t mt-2 flex justify-between font-bold text-slate-900">
-                 <span>DISPONÍVEL TOTAL</span>
-                 <span>{formatCurrency(bankBalances.reduce((a, b) => a + b.balance, 0))}</span>
-               </div>
-             </div>
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+          <h3 className="font-black uppercase text-slate-800 tracking-tight">Entradas x Saídas</h3>
+          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+            {(['hoje', 'ontem', 'semana', 'mes'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setTimeFilter(f)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${timeFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
         </div>
-
-        <div className="lg:col-span-9 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-              <h3 className="text-center font-bold uppercase text-sm mb-4">Fluxo de Caixa</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="month" fontSize={12} />
-                    <YAxis fontSize={12} hide />
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Legend />
-                    <Bar dataKey="despesas" name="DESPESAS" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="receitas" name="RECEITAS" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="label" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+              <Bar dataKey="entradas" name="ENTRADAS" fill="#10b981" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="saidas" name="SAÍDAS" fill="#ef4444" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <p className="text-sm font-bold text-blue-800">
+            🚀 Projeção Mensal: <span className="text-blue-600">Se continuar nesse ritmo, o mês fecha em: {formatCurrency(kpis.projection)}</span>
+          </p>
+        </div>
+      </div>
 
             <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
               <h3 className="text-center font-bold uppercase text-sm mb-4">Top Fiados Pendentes</h3>

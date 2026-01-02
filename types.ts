@@ -27,6 +27,14 @@ export interface Transaction {
   isPaid: boolean;
 }
 
+export interface MonthHistory {
+  monthYear: string;
+  totalSold: number;
+  totalCost: number;
+  profit: number;
+  margin: number;
+}
+
 export interface Fiado {
   id: string;
   customerName: string;

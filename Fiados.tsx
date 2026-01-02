@@ -124,27 +124,30 @@ const Fiados: React.FC<FiadosProps> = ({ fiados, banks, addFiado, payFiado, remo
         {[...fiados].reverse().map((f) => {
           const overdue = !f.isPaid && isOverdue(f.date);
           return (
-            <tr key={f.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${overdue ? 'bg-red-50' : ''}`}>
-              <td className="px-4 py-3 text-slate-500 flex items-center gap-2">
-                {overdue && <span title="Atrasado (+30 dias)" className="text-red-500 animate-pulse font-bold text-lg">!</span>}
+            <tr key={f.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${overdue ? 'bg-red-50 border-l-4 border-red-500' : ''}`}>
+              <td className="px-4 py-3 text-slate-500">
                 {new Date(f.date).toLocaleDateString('pt-BR')}
+                {overdue && (
+                  <div className="text-[10px] font-black text-red-600 uppercase flex items-center gap-1 mt-1">
+                    <span className="animate-ping w-2 h-2 rounded-full bg-red-500" />
+                    {Math.floor((Date.now() - new Date(f.date).getTime()) / 86400000)} DIAS EM ATRASO
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3">
                 <div className="font-bold text-slate-800">{f.customerName}</div>
-                {overdue && <span className="text-[10px] bg-red-500 text-white px-1 rounded font-bold uppercase">Atrasado</span>}
               </td>
-              <td className="px-4 py-3 font-bold text-slate-900">{formatCurrency(f.amount)}</td>
+              <td className="px-4 py-3 font-black text-slate-900">{formatCurrency(f.amount)}</td>
               <td className="px-4 py-3">
-                {f.isPaid ? (
-                  <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase">Recebido</span>
-                ) : (
+                {!f.isPaid && (
                   <button 
                     onClick={() => { setSelectedFiadoToPay(f.id); setTargetBankId(banks[0]?.id || ''); }}
-                    className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-[10px] font-black uppercase hover:bg-yellow-200 transition-colors shadow-sm"
+                    className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-green-200 hover:bg-green-700 active:scale-95 transition-all"
                   >
-                    Dar Baixa (Pagar)
+                    Recebeu
                   </button>
                 )}
+                {f.isPaid && <span className="text-green-600 font-bold uppercase text-xs">Recebido</span>}
               </td>
               <td className="px-4 py-3 flex gap-3">
                 <button onClick={() => removeFiado(f.id)} className="text-slate-400 hover:text-red-600 text-[10px] font-bold uppercase underline underline-offset-4">Remover</button>
