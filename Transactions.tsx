@@ -19,6 +19,9 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, banks, catego
   const [bankId, setBankId] = useState(banks[0]?.id || '');
   const [catId, setCatId] = useState(categories[0]?.id || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [quantity, setQuantity] = useState('');
+
+  const isChickenCategory = categories.find(c => c.id === catId)?.name.toLowerCase().includes('frango');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,10 +33,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, banks, catego
       bankId,
       categoryId: catId,
       date,
-      isPaid: true
+      isPaid: true,
+      quantity: isChickenCategory ? parseFloat(quantity) : undefined
     });
     setDesc('');
     setVal('');
+    setQuantity('');
   };
 
   return (
@@ -61,19 +66,19 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, banks, catego
             <input type="date" className="w-full border rounded px-3 py-2" value={date} onChange={e => setDate(e.target.value)} />
           </div>
           <div className="flex items-end">
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">SALVAR</button>
-          </div>
-          <div>
-             <label className="block text-xs font-bold text-slate-500 mb-1">BANCO</label>
-             <select className="w-full border rounded px-3 py-2" value={bankId} onChange={e => setBankId(e.target.value)}>
-                {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-             </select>
-          </div>
-          <div>
              <label className="block text-xs font-bold text-slate-500 mb-1">CATEGORIA</label>
              <select className="w-full border rounded px-3 py-2" value={catId} onChange={e => setCatId(e.target.value)}>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
              </select>
+          </div>
+          {isChickenCategory && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">QUANTIDADE (UN)</label>
+              <input type="number" step="1" className="w-full border rounded px-3 py-2" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" />
+            </div>
+          )}
+          <div className="flex items-end">
+            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">SALVAR</button>
           </div>
         </form>
       </div>

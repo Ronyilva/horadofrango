@@ -75,7 +75,20 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const totalFiadosPending = fiados.filter(f => !f.isPaid).reduce((acc, f) => acc + f.amount, 0);
     const totalFiadosOverdue = fiados.filter(f => !f.isPaid && isOverdue(f.date)).reduce((acc, f) => acc + f.amount, 0);
 
-    const chickenSales = dailyTransactions.filter(t => t.description.toLowerCase().includes('frango')).length;
+    const chickenSales = periodTransactions
+      .filter(t => categories.find(c => c.id === t.categoryId)?.name.toLowerCase().includes('frango'))
+      .reduce((acc, t) => acc + (t.quantity || 0), 0);
+
+    const chickenRevenue = periodTransactions
+      .filter(t => categories.find(c => c.id === t.categoryId)?.name.toLowerCase().includes('frango') && t.type === TransactionType.RECEITA)
+      .reduce((acc, t) => acc + t.amount, 0);
+
+    const chickenCosts = periodTransactions
+      .filter(t => categories.find(c => c.id === t.categoryId)?.name.toLowerCase().includes('frango') && t.type === TransactionType.DESPESA)
+      .reduce((acc, t) => acc + t.amount, 0);
+
+    const averageTicket = chickenSales > 0 ? chickenRevenue / chickenSales : 0;
+    const unitProfit = chickenSales > 0 ? (chickenRevenue - chickenCosts) / chickenSales : 0;
 
     return { 
       caixaPeriodo,
@@ -85,6 +98,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       totalFiadosOverdue,
       projection,
       chickenSales,
+      averageTicket,
+      unitProfit,
       totalSoldToday: dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0)
     };
   }, [transactions, fiados, today, getPeriodTransactions]);
@@ -214,6 +229,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Frangos Vendidos</p>
           <p className="text-2xl font-black text-orange-500">{kpis.chickenSales} un</p>
+          <p className="text-[10px] text-slate-400 font-bold mt-1">
+            Ticket: {formatCurrency(kpis.averageTicket)} | Lucro/Un: {formatCurrency(kpis.unitProfit)}
+          </p>
         </div>
       </div>
 

@@ -25,6 +25,7 @@ export interface Transaction {
   bankId: string;
   categoryId: string;
   isPaid: boolean;
+  quantity?: number;
 }
 
 export interface DashboardData {
