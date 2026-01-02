@@ -26,9 +26,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
   const isOverdue = (dateStr: string) => {
     const d = new Date(dateStr);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return d < thirtyDaysAgo;
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    return d < fifteenDaysAgo;
   };
 
   const [timeFilter, setTimeFilter] = useState<'hoje' | 'ontem' | 'semana' | 'mes'>('hoje');
@@ -116,6 +116,30 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     }));
   }, [transactions, timeFilter, today, yesterday]);
 
+  const categorySummary = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredTransactions.filter(t => t.type === TransactionType.DESPESA).forEach(t => {
+      const cat = categories.find(c => c.id === t.categoryId)?.name || 'Outros';
+      map[cat] = (map[cat] || 0) + t.amount;
+    });
+    const total = Object.values(map).reduce((a, b) => a + b, 0);
+    return Object.entries(map).map(([name, value]) => ({
+      name,
+      value,
+      percent: total > 0 ? (value / total) * 100 : 0
+    })).sort((a, b) => b.value - a.value);
+  }, [filteredTransactions, categories]);
+
+  const bankBalances = useMemo(() => {
+    return banks.map(b => {
+      const trans = transactions.filter(t => t.bankId === b.id && t.isPaid);
+      const balance = b.initialBalance + trans.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
+      return { name: b.name, color: b.color, balance };
+    });
+  }, [transactions, banks]);
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
+
   return (
     <div className="space-y-6">
       {/* Reordered KPI Cards */}
@@ -181,6 +205,66 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-3 space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Filtros Mensais</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1">ANO</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[2024, 2025, 2026, 2027].map(y => (
+                    <button 
+                      key={y}
+                      onClick={() => setSelectedYear(y)}
+                      className={`py-1 px-2 rounded border text-sm ${selectedYear === y ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">MÊS</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => setSelectedMonth(i)}
+                      className={`py-1 px-2 rounded border text-xs ${selectedMonth === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                    >
+                      {getMonthName(i)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+             <div className="text-center mb-4">
+               <h3 className="text-sm font-bold uppercase">Saldo em Conta</h3>
+             </div>
+             <div className="space-y-2">
+               {bankBalances.map(b => (
+                 <div key={b.name} className="flex justify-between items-center text-sm">
+                   <div className="flex items-center gap-2">
+                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: b.color }} />
+                     <span className="font-medium text-slate-700">{b.name}</span>
+                   </div>
+                   <span className={`font-bold ${b.balance < 0 ? 'text-red-500' : 'text-slate-900'}`}>{formatCurrency(b.balance)}</span>
+                 </div>
+               ))}
+               <div className="pt-2 border-t mt-2 flex justify-between font-bold text-slate-900">
+                 <span>DISPONÍVEL TOTAL</span>
+                 <span>{formatCurrency(bankBalances.reduce((a, b) => a + b.balance, 0))}</span>
+               </div>
+             </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-9 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
               <h3 className="text-center font-bold uppercase text-sm mb-4">Top Fiados Pendentes</h3>
               <div className="overflow-y-auto h-64">
@@ -205,10 +289,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
                 </table>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
               <h3 className="text-center font-bold uppercase text-sm mb-4">Gastos por Categoria</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -232,17 +314,17 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
                 </ResponsiveContainer>
               </div>
             </div>
-
-            <Table title="Resumo Geral do Mês" headers={['Categoria', 'Valor', '%']}>
-              {categorySummary.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 last:border-none">
-                  <td className="px-4 py-2">{row.name}</td>
-                  <td className="px-4 py-2 font-medium">{formatCurrency(row.value)}</td>
-                  <td className="px-4 py-2 text-slate-500">{formatPercent(row.percent)}</td>
-                </tr>
-              ))}
-            </Table>
           </div>
+
+          <Table title="Resumo Geral do Mês" headers={['Categoria', 'Valor', '%']}>
+            {categorySummary.map((row, i) => (
+              <tr key={i} className="border-b border-slate-100 last:border-none">
+                <td className="px-4 py-2">{row.name}</td>
+                <td className="px-4 py-2 font-medium">{formatCurrency(row.value)}</td>
+                <td className="px-4 py-2 text-slate-500">{formatPercent(row.percent)}</td>
+              </tr>
+            ))}
+          </Table>
         </div>
       </div>
     </div>

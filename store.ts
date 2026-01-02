@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Bank, Category, Transaction, Fiado, TransactionType } from './types';
+import { Bank, Category, Transaction, Fiado, TransactionType, MonthHistory } from './types';
 import { DEFAULT_BANKS, DEFAULT_CATEGORIES, MOCK_TRANSACTIONS } from './constants';
 
 export function useFinanceStore() {
@@ -17,6 +17,11 @@ export function useFinanceStore() {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('hdf_transactions');
     return saved ? JSON.parse(saved) : MOCK_TRANSACTIONS;
+  });
+
+  const [fiados, setFiados] = useState<Fiado[]>(() => {
+    const saved = localStorage.getItem('hdf_fiados');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [history, setHistory] = useState<MonthHistory[]>(() => {
