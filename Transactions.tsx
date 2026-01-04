@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Category } from './types';
 import Table from './components/Table';
-import { formatCurrency } from './utils';
+import { formatCurrency, formatLocalDate } from './utils';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -90,11 +90,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, banks, catego
           return (
             <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
               <td className="px-4 py-3 text-slate-500">
-              {(() => {
-                const [year, month, day] = t.date.split('-');
-                return `${day}/${month}/${year}`;
-              })()}
-            </td>
+                {formatLocalDate(t.date)}
+              </td>
               <td className="px-4 py-3 font-medium">{t.description}</td>
               <td className="px-4 py-3 text-slate-600">{cat?.name}</td>
               <td className="px-4 py-3">

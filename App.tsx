@@ -6,6 +6,7 @@ import Transactions from './Transactions';
 import Fiados from './Fiados';
 import Forecast from './Forecast';
 import { useFinanceStore } from './store';
+import { parseLocalDate } from './utils';
 
 enum Tab {
   DASHBOARD = 'DASHBOARD',
@@ -49,8 +50,10 @@ const App: React.FC = () => {
 
   const overdueFiados = useMemo(() => {
     const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setHours(0,0,0,0);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return fiados.filter(f => !f.isPaid && new Date(f.date) < thirtyDaysAgo);
+    // f.date é YYYY-MM-DD, parseLocalDate evita fuso UTC
+    return fiados.filter(f => !f.isPaid && parseLocalDate(f.date) < thirtyDaysAgo);
   }, [fiados]);
 
   useEffect(() => {
