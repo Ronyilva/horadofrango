@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
   const [showNotifications, setShowNotifications] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
   
   const { 
     banks, categories, transactions, fiados, history,
@@ -94,6 +95,12 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <input 
+              type="date" 
+              value={currentDate} 
+              onChange={(e) => setCurrentDate(e.target.value)}
+              className="bg-slate-700 border-none rounded-lg px-2 py-1 text-xs font-bold text-white focus:ring-2 focus:ring-blue-400"
+            />
             {/* Install Button for PWA */}
             {deferredPrompt && (
               <button 
@@ -151,7 +158,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 mt-6">
         {activeTab === Tab.DASHBOARD && (
-          <Dashboard transactions={transactions} banks={banks} categories={categories} fiados={fiados} history={history} />
+          <Dashboard transactions={transactions} banks={banks} categories={categories} fiados={fiados} history={history} today={currentDate} />
         )}
         {activeTab === Tab.EXTRATO && (
           <Transactions 

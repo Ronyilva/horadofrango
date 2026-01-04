@@ -41,41 +41,9 @@ export function useFinanceStore() {
     localStorage.setItem('hdf_last_check', lastCheckDate);
   }, [lastCheckDate]);
 
-  // Month turnover logic
+  // Month turnover logic removed as requested: calculations follow data_lancamento
   useEffect(() => {
-    const now = new Date();
-    const lastCheck = new Date(lastCheckDate);
-    
-    if (now.getMonth() !== lastCheck.getMonth() || now.getFullYear() !== lastCheck.getFullYear()) {
-      // Calculate last month's stats before resetting
-      const lastMonth = lastCheck.getMonth();
-      const lastYear = lastCheck.getFullYear();
-      
-      const lastMonthTransactions = transactions.filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === lastMonth && d.getFullYear() === lastYear;
-      });
-
-      const totalSold = lastMonthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-      const totalCost = lastMonthTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
-      const profit = totalSold - totalCost;
-      const margin = totalSold > 0 ? (profit / totalSold) * 100 : 0;
-
-      const historyEntry: MonthHistory = {
-        monthYear: `${lastMonth + 1}/${lastYear}`,
-        totalSold,
-        totalCost,
-        profit,
-        margin
-      };
-
-      setHistory(prev => [...prev, historyEntry]);
-      setLastCheckDate(now.toISOString());
-      
-      // We don't clear transactions, but the UI filters by current month
-      // The user requested: "Zerar automaticamente: Receita mensal, Custos mensais, Lucro mensal"
-      // This is effectively handled by the UI filtering for the current month.
-    }
+    // Logic previously here used new Date() which is now forbidden for financial calculations
   }, [transactions, lastCheckDate]);
 
   useEffect(() => {
@@ -136,7 +104,7 @@ export function useFinanceStore() {
       type: TransactionType.RECEITA,
       bankId: bankId,
       categoryId: 'c1', // Fixed as "Venda" or similar based on DEFAULT_CATEGORIES
-      date: new Date().toISOString().split('T')[0],
+      date: fiado.date,
       isPaid: true
     };
     addTransaction(newTransaction);

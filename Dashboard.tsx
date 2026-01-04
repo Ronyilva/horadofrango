@@ -12,14 +12,13 @@ interface DashboardProps {
   categories: Category[];
   fiados: Fiado[];
   history: MonthHistory[];
+  today: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history }) => {
+const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history, today }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [globalPeriod, setGlobalPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
-
-  const today = new Date().toISOString().split('T')[0];
   
   const isOverdue = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -29,7 +28,6 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
   };
 
   const getPeriodTransactions = useMemo(() => {
-    const now = new Date();
     return transactions.filter(t => {
       const d = new Date(t.date);
       const tDate = t.date.split('T')[0];
@@ -37,9 +35,10 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       if (globalPeriod === 'dia') return tDate === today;
       
       if (globalPeriod === 'semana') {
-        const startOfWeek = new Date(now);
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+        const selectedDate = new Date(today);
+        const startOfWeek = new Date(selectedDate);
+        const day = selectedDate.getDay();
+        const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); // Monday
         startOfWeek.setDate(diff);
         startOfWeek.setHours(0,0,0,0);
         
@@ -50,7 +49,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         return d >= startOfWeek && d <= endOfWeek;
       }
       
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      const selectedDate = new Date(today);
+      return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
     });
   }, [transactions, globalPeriod, today]);
 
@@ -59,8 +59,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const dailyTransactions = transactions.filter(t => t.date.split('T')[0] === today);
     const monthTransactions = transactions.filter(t => {
       const d = new Date(t.date);
-      const now = new Date();
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      const selectedDate = new Date(today);
+      return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
     });
 
     const caixaPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
@@ -68,8 +68,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const custoPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
     
     const revenueMonth = monthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-    const dayOfMonth = new Date().getDate();
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const selectedDate = new Date(today);
+    const dayOfMonth = selectedDate.getDate();
+    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
     const projection = (revenueMonth / dayOfMonth) * daysInMonth;
 
     const totalFiadosPending = fiados.filter(f => !f.isPaid).reduce((acc, f) => acc + f.amount, 0);
@@ -90,6 +91,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const averageTicket = chickenSales > 0 ? chickenRevenue / chickenSales : 0;
     const unitProfit = chickenSales > 0 ? (chickenRevenue - chickenCosts) / chickenSales : 0;
 
+    const dailyRevenue = dailyTransactions.filter(t => t.type === TransactionType.RECEITA).reduce((acc, t) => acc + t.amount, 0);
+    const dailyExpenses = dailyTransactions.filter(t => t.type === TransactionType.DESPESA).reduce((acc, t) => acc + t.amount, 0);
+
     return { 
       caixaPeriodo,
       lucroPeriodo,
@@ -100,9 +104,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       chickenSales,
       averageTicket,
       unitProfit,
-      totalSoldToday: dailyTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0)
+      totalSoldToday: dailyRevenue,
+      totalExpensesToday: dailyExpenses,
+      dailyProfit: dailyRevenue - dailyExpenses
     };
-  }, [transactions, fiados, today, getPeriodTransactions]);
+  }, [transactions, fiados, today, getPeriodTransactions, categories]);
 
   const chartData = useMemo(() => {
     if (globalPeriod === 'dia') {
@@ -136,7 +142,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       });
     }
 
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const selectedDate = new Date(today);
+    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
     return Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const dayTransactions = getPeriodTransactions.filter(t => new Date(t.date).getDate() === day);
@@ -187,7 +194,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-center md:justify-end">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+        </div>
         <div className="inline-flex p-1 bg-slate-200 rounded-xl shadow-inner">
           {(['dia', 'semana', 'mes'] as const).map((p) => (
             <button
@@ -215,16 +224,16 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase">Total Vendido Hoje</p>
+          <p className="text-xs font-bold text-slate-400 uppercase">Total Vendido no Período</p>
           <p className="text-2xl font-black text-slate-800">{formatCurrency(kpis.totalSoldToday)}</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase">Total Gasto Hoje</p>
-          <p className="text-2xl font-black text-red-500">{formatCurrency(transactions.filter(t => t.date.split('T')[0] === today && t.type === TransactionType.DESPESA).reduce((a,b) => a+b.amount,0))}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase">Total Gasto no Período</p>
+          <p className="text-2xl font-black text-red-500">{formatCurrency(kpis.totalExpensesToday)}</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase">Lucro do Dia</p>
-          <p className="text-2xl font-black text-green-500">{formatCurrency(transactions.filter(t => t.date.split('T')[0] === today).reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0))}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase">Lucro no Período</p>
+          <p className="text-2xl font-black text-green-500">{formatCurrency(kpis.dailyProfit)}</p>
         </div>
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase">Frangos Vendidos</p>
