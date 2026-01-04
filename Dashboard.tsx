@@ -179,17 +179,30 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
   }, [transactions, selectedYear, selectedMonth]);
 
   const categorySummary = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredTransactions.filter(t => t.type === TransactionType.DESPESA).forEach(t => {
+    const map: Record<string, { amount: number, type: TransactionType }> = {};
+    
+    // Filtra transações pagas (fiados recebidos já entram aqui como transação de receita)
+    filteredTransactions.forEach(t => {
+      if (!t.isPaid) return;
       const cat = categories.find(c => c.id === t.categoryId)?.name || 'Outros';
-      map[cat] = (map[cat] || 0) + t.amount;
+      const key = `${cat}_${t.type}`;
+      if (!map[key]) {
+        map[key] = { amount: 0, type: t.type };
+      }
+      map[key].amount += t.amount;
     });
-    const total = Object.values(map).reduce((a, b) => a + b, 0);
-    return Object.entries(map).map(([name, value]) => ({
-      name,
-      value,
-      percent: total > 0 ? (value / total) * 100 : 0
-    })).sort((a, b) => b.value - a.value);
+
+    const total = Object.values(map).reduce((a, b) => a + b.amount, 0);
+    
+    return Object.entries(map).map(([key, data]) => {
+      const name = key.split('_')[0];
+      return {
+        name,
+        type: data.type,
+        value: data.amount,
+        percent: total > 0 ? (data.amount / total) * 100 : 0
+      };
+    }).sort((a, b) => b.value - a.value);
   }, [filteredTransactions, categories]);
 
   const bankBalances = useMemo(() => {
@@ -365,7 +378,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
             </div>
 
             <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-              <h3 className="text-center font-bold uppercase text-sm mb-4">Gastos por Categoria</h3>
+              <h3 className="text-center font-bold uppercase text-sm mb-4">Movimentação por Categoria</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -379,10 +392,15 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
                       dataKey="value"
                     >
                       {categorySummary.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={entry.type === TransactionType.RECEITA ? '#3b82f6' : '#ef4444'} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                    <Tooltip 
+                      formatter={(value, name, props) => [
+                        formatCurrency(value as number), 
+                        `${props.payload.name} (${props.payload.type === TransactionType.RECEITA ? 'Receita' : 'Custo'})`
+                      ]} 
+                    />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -390,12 +408,23 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
             </div>
           </div>
 
-          <Table title="Resumo Geral do Mês" headers={['Categoria', 'Valor', '%']}>
+          <Table title="Resumo Geral do Mês" headers={['Categoria', 'Tipo', 'Valor', '%']}>
             {categorySummary.map((row, i) => (
               <tr key={i} className="border-b border-slate-100 last:border-none">
-                <td className="px-4 py-2">{row.name}</td>
-                <td className="px-4 py-2 font-medium">{formatCurrency(row.value)}</td>
-                <td className="px-4 py-2 text-slate-500">{formatPercent(row.percent)}</td>
+                <td className="px-4 py-2 font-medium">{row.name}</td>
+                <td className="px-4 py-2">
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    row.type === TransactionType.RECEITA ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {row.type === TransactionType.RECEITA ? 'Receita' : 'Custo'}
+                  </span>
+                </td>
+                <td className={`px-4 py-2 font-bold ${
+                  row.type === TransactionType.RECEITA ? 'text-blue-600' : 'text-red-500'
+                }`}>
+                  {formatCurrency(row.value)}
+                </td>
+                <td className="px-4 py-2 text-slate-500 font-bold">{formatPercent(row.percent)}</td>
               </tr>
             ))}
           </Table>
