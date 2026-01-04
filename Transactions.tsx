@@ -89,7 +89,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, banks, catego
           const cat = categories.find(c => c.id === t.categoryId);
           return (
             <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
-              <td className="px-4 py-3 text-slate-500">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+              <td className="px-4 py-3 text-slate-500">
+              {(() => {
+                const [year, month, day] = t.date.split('-');
+                return `${day}/${month}/${year}`;
+              })()}
+            </td>
               <td className="px-4 py-3 font-medium">{t.description}</td>
               <td className="px-4 py-3 text-slate-600">{cat?.name}</td>
               <td className="px-4 py-3">
