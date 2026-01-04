@@ -1,0 +1,60 @@
+Quero refatorar o dashboard do app HORA DO FRANGO com foco em simplicidade, precisão de datas e controle real do negócio.
+
+1) REMOVER COMPLETAMENTE os botões DIA / SEMANA / MÊS.
+Todo o sistema deve funcionar APENAS com um filtro de período por calendário, com data inicial e data final.
+
+Regras do filtro:
+- Se selecionar apenas uma data, mostrar apenas esse dia.
+- Se selecionar de 01 a 31, mostrar o mês inteiro.
+- Se selecionar um intervalo que atravessa meses, mostrar tudo consolidado no período.
+- TODOS os cards, gráficos, tabelas e totais devem respeitar exatamente esse intervalo.
+
+2) CORREÇÃO DE DATAS E DIA DA SEMANA:
+- A data considerada deve ser SEMPRE a data escolhida no lançamento.
+- Nunca usar a data atual do sistema para cálculos.
+- Corrigir erro de dia da semana (ex: dia 3 não pode aparecer como dia errado).
+- Usar timezone fixo America/Sao_Paulo.
+- O gráfico de Entradas x Saídas deve calcular o dia da semana com base na data do lançamento.
+
+3) DASHBOARD:
+- Caixa do período
+- Lucro do período
+- Custo do período
+- Fiados em aberto (independente do período)
+- Fiados atrasados
+- Total vendido no período
+- Total gasto no período
+- Lucro no período
+- Quantidade de frangos vendidos no período
+- Ticket médio
+- Lucro por unidade
+
+4) GRÁFICO E RESUMO POR CATEGORIA:
+O gráfico e o resumo devem mostrar TODAS as categorias:
+- Frangos vendidos
+- Frangos fiados
+- Embalagens
+- Temperos
+- Outros custos
+Separar visualmente RECEITAS e CUSTOS.
+
+5) LANÇAMENTOS COM QUANTIDADE:
+Ao selecionar categorias como frangos, embalagens, caixas:
+- Permitir informar quantidade (ex: 10 frangos por R$ 500).
+- O dashboard deve somar corretamente a quantidade.
+- Não mostrar todas as quantidades na dashboard, apenas o total de frangos vendidos no período.
+
+6) PREVISIBILIDADE:
+- Todos os campos devem iniciar zerados ao abrir a tela.
+- Usar apenas como simulador de compra:
+  custo da caixa, frangos por caixa, custo unitário, preço de venda, margem, ponto de equilíbrio.
+- Não misturar dados reais com previsão.
+
+7) CUSTO FIXO MENSAL:
+Manter custo fixo mensal, mas:
+- Aplicar apenas na visão mensal.
+- Ratear proporcionalmente se o período for menor que o mês.
+- Nunca aplicar em visão diária isolada.
+
+Objetivo final:
+Um dashboard simples, confiável, sem confusão de datas, que reflita exatamente o que foi lançado e ajude na decisão de compra e venda de frangos.
