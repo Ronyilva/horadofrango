@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Bank, Category, Transaction, TransactionType, Fiado, MonthHistory } from './types';
 import StatCard from './components/StatCard';
 import Table from './components/Table';
-import { formatCurrency, formatPercent, getMonthName, parseLocalDate, getLocalDayOfWeek } from './utils';
+import { formatCurrency, formatPercent, getMonthName, parseLocalDate } from './utils';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -12,13 +12,13 @@ interface DashboardProps {
   categories: Category[];
   fiados: Fiado[];
   history: MonthHistory[];
-  today: string;
+  startDate: string;
+  endDate: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history, today }) => {
+const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, fiados, history, startDate, endDate }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [globalPeriod, setGlobalPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
   
   const isOverdue = (dateStr: string) => {
     const d = parseLocalDate(dateStr);
@@ -29,51 +29,31 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
   };
 
   const getPeriodTransactions = useMemo(() => {
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+    end.setHours(23, 59, 59, 999);
+
     return transactions.filter(t => {
       const d = parseLocalDate(t.date);
-      const tDate = t.date;
-      
-      if (globalPeriod === 'dia') return tDate === today;
-      
-      if (globalPeriod === 'semana') {
-        const selectedDate = parseLocalDate(today);
-        const day = selectedDate.getDay();
-        const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); // Monday
-        
-        const startOfWeek = new Date(selectedDate);
-        startOfWeek.setDate(diff);
-        startOfWeek.setHours(0,0,0,0);
-        
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23,59,59,999);
-        
-        return d >= startOfWeek && d <= endOfWeek;
-      }
-      
-      const selectedDate = parseLocalDate(today);
-      return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
+      return d >= start && d <= end;
     });
-  }, [transactions, globalPeriod, today]);
+  }, [transactions, startDate, endDate]);
 
   const kpis = useMemo(() => {
     const periodTransactions = getPeriodTransactions;
-    const dailyTransactions = transactions.filter(t => t.date === today);
-    const monthTransactions = transactions.filter(t => {
-      const d = parseLocalDate(t.date);
-      const selectedDate = parseLocalDate(today);
-      return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
-    });
-
+    
     const caixaPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
     const lucroPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc - t.amount, 0);
     const custoPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
     
-    const revenueMonth = monthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-    const selectedDate = parseLocalDate(today);
-    const dayOfMonth = selectedDate.getDate();
-    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
-    const projection = (revenueMonth / dayOfMonth) * daysInMonth;
+    const revenueRange = periodTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
+    
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+    const projection = (revenueRange / diffDays) * daysInMonth;
 
     const totalFiadosPending = fiados.filter(f => !f.isPaid).reduce((acc, f) => acc + f.amount, 0);
     const totalFiadosOverdue = fiados.filter(f => !f.isPaid && isOverdue(f.date)).reduce((acc, f) => acc + f.amount, 0);
@@ -93,8 +73,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const averageTicket = chickenSales > 0 ? chickenRevenue / chickenSales : 0;
     const unitProfit = chickenSales > 0 ? (chickenRevenue - chickenCosts) / chickenSales : 0;
 
-    const dailyRevenue = dailyTransactions.filter(t => t.type === TransactionType.RECEITA).reduce((acc, t) => acc + t.amount, 0);
-    const dailyExpenses = dailyTransactions.filter(t => t.type === TransactionType.DESPESA).reduce((acc, t) => acc + t.amount, 0);
+    const rangeRevenue = periodTransactions.filter(t => t.type === TransactionType.RECEITA).reduce((acc, t) => acc + t.amount, 0);
+    const rangeExpenses = periodTransactions.filter(t => t.type === TransactionType.DESPESA).reduce((acc, t) => acc + t.amount, 0);
 
     return { 
       caixaPeriodo,
@@ -106,82 +86,56 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       chickenSales,
       averageTicket,
       unitProfit,
-      totalSoldToday: dailyRevenue,
-      totalExpensesToday: dailyExpenses,
-      dailyProfit: dailyRevenue - dailyExpenses
+      totalSoldToday: rangeRevenue,
+      totalExpensesToday: rangeExpenses,
+      dailyProfit: rangeRevenue - rangeExpenses
     };
-  }, [transactions, fiados, today, getPeriodTransactions, categories]);
+  }, [transactions, fiados, startDate, endDate, getPeriodTransactions, categories]);
 
   const chartData = useMemo(() => {
-    if (globalPeriod === 'dia') {
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    if (diffDays === 1) {
       const hours = Array.from({ length: 24 }, (_, i) => ({
         label: `${i}h`,
         entradas: 0,
         saidas: 0
       }));
-      // Nota: o sistema não armazena hora no t.date atual, mas se armazenasse t.date seria ISO completo.
-      // Se t.date for apenas YYYY-MM-DD,getHours() será 0.
-      transactions.filter(t => t.date === today).forEach(t => {
-        // Se a transação tiver informação de hora (ex: no ID ou se mudar o store), usaríamos aqui.
-        // Como o padrão é YYYY-MM-DD, o gráfico de hora será vazio ou concentrado no 0h.
+      transactions.filter(t => t.date === startDate).forEach(t => {
         hours[0].entradas += t.type === TransactionType.RECEITA ? t.amount : 0;
         hours[0].saidas += t.type === TransactionType.DESPESA ? t.amount : 0;
       });
       return hours;
     }
 
-    if (globalPeriod === 'semana') {
-      const daysShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
-      const selectedDate = parseLocalDate(today);
-      const day = selectedDate.getDay();
-      const mondayDiff = selectedDate.getDate() - day + (day === 0 ? -6 : 1);
+    return Array.from({ length: Math.min(diffDays, 31) }, (_, i) => {
+      const currentDay = new Date(start);
+      currentDay.setDate(start.getDate() + i);
+      const dateStr = currentDay.toISOString().split('T')[0];
+      const dayTransactions = transactions.filter(t => t.date === dateStr);
       
-      return daysShort.map((d, i) => {
-        const currentDayDate = new Date(selectedDate);
-        currentDayDate.setDate(mondayDiff + i);
-        const dateStr = currentDayDate.toISOString().split('T')[0];
-        
-        const dayTransactions = transactions.filter(t => t.date === dateStr);
-        
-        return {
-          label: d,
-          entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
-          saidas: dayTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0)
-        };
-      });
-    }
-
-    const selectedDate = parseLocalDate(today);
-    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => {
-      const day = i + 1;
-      const targetDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const dayTransactions = transactions.filter(t => t.date === targetDate);
       return {
-        label: `${day}`,
+        label: `${currentDay.getDate()}/${currentDay.getMonth() + 1}`,
         entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
         saidas: dayTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0)
       };
     });
-  }, [transactions, globalPeriod, today]);
+  }, [transactions, startDate, endDate]);
 
   const getLabel = (base: string) => {
-    if (globalPeriod === 'dia') return `${base} do Dia`;
-    if (globalPeriod === 'semana') return `${base} da Semana`;
-    return base === 'Lucro' ? 'Lucro Líquido do Mês' : `${base} do Mês`;
+    return `${base} do Período`;
   };
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
-    });
-  }, [transactions, selectedYear, selectedMonth]);
+    return getPeriodTransactions;
+  }, [getPeriodTransactions]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, { amount: number, type: TransactionType }> = {};
     
-    // Filtra transações pagas (fiados recebidos já entram aqui como transação de receita)
     filteredTransactions.forEach(t => {
       if (!t.isPaid) return;
       const cat = categories.find(c => c.id === t.categoryId)?.name || 'Outros';
@@ -213,30 +167,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     });
   }, [transactions, banks]);
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-        </div>
-        <div className="inline-flex p-1 bg-slate-200 rounded-xl shadow-inner">
-          {(['dia', 'semana', 'mes'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setGlobalPeriod(p)}
-              className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all duration-200 ${
-                globalPeriod === p 
-                ? 'bg-white text-blue-600 shadow-md transform scale-105' 
-                : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard label={getLabel('Caixa')} value={kpis.caixaPeriodo} bgColor="bg-green-600" />
         <StatCard label={getLabel('Lucro')} value={kpis.lucroPeriodo} bgColor="bg-blue-600" />
@@ -269,7 +201,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          <h3 className="font-black uppercase text-slate-800 tracking-tight">Entradas x Saídas ({globalPeriod.toUpperCase()})</h3>
+          <h3 className="font-black uppercase text-slate-800 tracking-tight">Entradas x Saídas</h3>
         </div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
@@ -283,13 +215,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
             </BarChart>
           </ResponsiveContainer>
         </div>
-        {globalPeriod === 'mes' && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-sm font-bold text-blue-800">
-              🚀 Projeção Mensal: <span className="text-blue-600">Se continuar nesse ritmo, o mês fecha em: {formatCurrency(kpis.projection)}</span>
-            </p>
-          </div>
-        )}
+        <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+          <p className="text-sm font-bold text-blue-800">
+            🚀 Projeção Mensal: <span className="text-blue-600">Se continuar nesse ritmo, o mês fecha em: {formatCurrency(kpis.projection)}</span>
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -408,7 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
             </div>
           </div>
 
-          <Table title="Resumo Geral do Mês" headers={['Categoria', 'Tipo', 'Valor', '%']}>
+          <Table title="Resumo Geral do Período" headers={['Categoria', 'Tipo', 'Valor', '%']}>
             {categorySummary.map((row, i) => (
               <tr key={i} className="border-b border-slate-100 last:border-none">
                 <td className="px-4 py-2 font-medium">{row.name}</td>

@@ -22,7 +22,16 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
   const [showNotifications, setShowNotifications] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Período padrão: mês atual
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  });
   
   const { 
     banks, categories, transactions, fiados, history,
@@ -98,12 +107,21 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <input 
-              type="date" 
-              value={currentDate} 
-              onChange={(e) => setCurrentDate(e.target.value)}
-              className="bg-slate-700 border-none rounded-lg px-2 py-1 text-xs font-bold text-white focus:ring-2 focus:ring-blue-400"
-            />
+            <div className="flex items-center gap-1 bg-slate-700 p-1 rounded-lg">
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent border-none text-[10px] font-bold text-white focus:ring-0 w-24"
+              />
+              <span className="text-slate-400 text-[10px]">até</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent border-none text-[10px] font-bold text-white focus:ring-0 w-24"
+              />
+            </div>
             {/* Install Button for PWA */}
             {deferredPrompt && (
               <button 
@@ -161,7 +179,15 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 mt-6">
         {activeTab === Tab.DASHBOARD && (
-          <Dashboard transactions={transactions} banks={banks} categories={categories} fiados={fiados} history={history} today={currentDate} />
+          <Dashboard 
+            transactions={transactions} 
+            banks={banks} 
+            categories={categories} 
+            fiados={fiados} 
+            history={history} 
+            startDate={startDate}
+            endDate={endDate}
+          />
         )}
         {activeTab === Tab.EXTRATO && (
           <Transactions 
