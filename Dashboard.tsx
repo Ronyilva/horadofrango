@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Bank, Category, Transaction, TransactionType, Fiado, MonthHistory } from './types';
 import StatCard from './components/StatCard';
 import Table from './components/Table';
-import { formatCurrency, formatPercent, getMonthName } from './utils';
+import { formatCurrency, formatPercent, getMonthName, parseLocalDate, getLocalDayOfWeek } from './utils';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -21,24 +21,26 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
   const [globalPeriod, setGlobalPeriod] = useState<'dia' | 'semana' | 'mes'>('dia');
   
   const isOverdue = (dateStr: string) => {
-    const d = new Date(dateStr);
+    const d = parseLocalDate(dateStr);
     const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setHours(0,0,0,0);
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
     return d < fifteenDaysAgo;
   };
 
   const getPeriodTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const d = new Date(t.date);
-      const tDate = t.date.split('T')[0];
+      const d = parseLocalDate(t.date);
+      const tDate = t.date;
       
       if (globalPeriod === 'dia') return tDate === today;
       
       if (globalPeriod === 'semana') {
-        const selectedDate = new Date(today);
-        const startOfWeek = new Date(selectedDate);
+        const selectedDate = parseLocalDate(today);
         const day = selectedDate.getDay();
         const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); // Monday
+        
+        const startOfWeek = new Date(selectedDate);
         startOfWeek.setDate(diff);
         startOfWeek.setHours(0,0,0,0);
         
@@ -49,17 +51,17 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         return d >= startOfWeek && d <= endOfWeek;
       }
       
-      const selectedDate = new Date(today);
+      const selectedDate = parseLocalDate(today);
       return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
     });
   }, [transactions, globalPeriod, today]);
 
   const kpis = useMemo(() => {
     const periodTransactions = getPeriodTransactions;
-    const dailyTransactions = transactions.filter(t => t.date.split('T')[0] === today);
+    const dailyTransactions = transactions.filter(t => t.date === today);
     const monthTransactions = transactions.filter(t => {
-      const d = new Date(t.date);
-      const selectedDate = new Date(today);
+      const d = parseLocalDate(t.date);
+      const selectedDate = parseLocalDate(today);
       return d.getFullYear() === selectedDate.getFullYear() && d.getMonth() === selectedDate.getMonth();
     });
 
@@ -68,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
     const custoPeriodo = periodTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0);
     
     const revenueMonth = monthTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0);
-    const selectedDate = new Date(today);
+    const selectedDate = parseLocalDate(today);
     const dayOfMonth = selectedDate.getDate();
     const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
     const projection = (revenueMonth / dayOfMonth) * daysInMonth;
@@ -117,23 +119,30 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
         entradas: 0,
         saidas: 0
       }));
-      transactions.filter(t => t.date.split('T')[0] === today).forEach(t => {
-        const h = new Date(t.date).getHours();
-        if (t.type === TransactionType.RECEITA) hours[h].entradas += t.amount;
-        else hours[h].saidas += t.amount;
+      // Nota: o sistema não armazena hora no t.date atual, mas se armazenasse t.date seria ISO completo.
+      // Se t.date for apenas YYYY-MM-DD,getHours() será 0.
+      transactions.filter(t => t.date === today).forEach(t => {
+        // Se a transação tiver informação de hora (ex: no ID ou se mudar o store), usaríamos aqui.
+        // Como o padrão é YYYY-MM-DD, o gráfico de hora será vazio ou concentrado no 0h.
+        hours[0].entradas += t.type === TransactionType.RECEITA ? t.amount : 0;
+        hours[0].saidas += t.type === TransactionType.DESPESA ? t.amount : 0;
       });
       return hours;
     }
 
     if (globalPeriod === 'semana') {
-      const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
-      return days.map((d, i) => {
-        const dayTransactions = getPeriodTransactions.filter(t => {
-          const dt = new Date(t.date);
-          const day = dt.getDay();
-          const targetDay = i === 6 ? 0 : i + 1;
-          return day === targetDay;
-        });
+      const daysShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
+      const selectedDate = parseLocalDate(today);
+      const day = selectedDate.getDay();
+      const mondayDiff = selectedDate.getDate() - day + (day === 0 ? -6 : 1);
+      
+      return daysShort.map((d, i) => {
+        const currentDayDate = new Date(selectedDate);
+        currentDayDate.setDate(mondayDiff + i);
+        const dateStr = currentDayDate.toISOString().split('T')[0];
+        
+        const dayTransactions = transactions.filter(t => t.date === dateStr);
+        
         return {
           label: d,
           entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
@@ -142,18 +151,19 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, banks, categories, 
       });
     }
 
-    const selectedDate = new Date(today);
+    const selectedDate = parseLocalDate(today);
     const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
     return Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
-      const dayTransactions = getPeriodTransactions.filter(t => new Date(t.date).getDate() === day);
+      const targetDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayTransactions = transactions.filter(t => t.date === targetDate);
       return {
         label: `${day}`,
         entradas: dayTransactions.reduce((acc, t) => t.type === TransactionType.RECEITA ? acc + t.amount : acc, 0),
         saidas: dayTransactions.reduce((acc, t) => t.type === TransactionType.DESPESA ? acc + t.amount : acc, 0)
       };
     });
-  }, [transactions, globalPeriod, today, getPeriodTransactions]);
+  }, [transactions, globalPeriod, today]);
 
   const getLabel = (base: string) => {
     if (globalPeriod === 'dia') return `${base} do Dia`;
